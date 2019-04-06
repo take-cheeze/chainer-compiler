@@ -341,7 +341,6 @@ private:
         return out;
     }
 
-#if CHAINER_COMPILER_ENABLE_PYTHON
     const tvm::PackedFunc* Py(const char* func_name) {
         if (func_name == nullptr) {
             return nullptr;
@@ -350,11 +349,6 @@ private:
         CHECK(fn) << func_name << " is not registered";
         return fn;
     }
-#else
-    const tvm::PackedFunc* Py(const char* func_name) {
-        return nullptr;
-    }
-#endif
 
     std::map<Value*, tvm::Tensor> tensors_;
     tvm::Target host_;

@@ -41,7 +41,7 @@ your_model = YourModel()
 compiled_model = chainer_compiler.compile(your_model)
 ```
 
-You need to specify `-DCHAINER_COMPILER_ENABLE_PYTHON` to use this functionality. See [MNIST code](/examples/mnist) for an example.
+See [MNIST code](/examples/mnist) for an example.
 
 ## [tools](/tools)
 

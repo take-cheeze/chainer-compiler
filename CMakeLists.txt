@@ -47,7 +47,6 @@ set_option_(CHAINER_COMPILER_ENABLE_NVRTC  "Enable NVRTC")
 set_option_(CHAINER_COMPILER_ENABLE_NVTX   "Enable NVTX")
 set_option_(CHAINER_COMPILER_ENABLE_OPENCV "Enable OPENCV")
 set_option_(CHAINER_COMPILER_ENABLE_OPENMP "Enable OPENMP")
-set_option_(CHAINER_COMPILER_ENABLE_PYTHON "Enable PYTHON")
 set_option_(CHAINER_COMPILER_ENABLE_TVM    "Enable TVM")
 set_option_(CHAINER_COMPILER_USE_SYSTEM_PROTOBUF "Use protobuf installed in the system")
 
@@ -73,11 +72,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
-# ChainerX will be linked dynamically. Build it before setting
-# visibility flags.
-if(${CHAINER_COMPILER_ENABLE_PYTHON})
-  set_subdirectory_option_(CHAINERX_BUILD_PYTHON ON)
-endif()
+find_package(Python3 REQUIRED)
+
+set_subdirectory_option_(CHAINERX_BUILD_PYTHON ON)
 add_subdirectory(third_party/chainer/chainerx_cc)
 
 # TODO(hamaji): Get `set_hidden_(libprotobuf)` work. CMP0063 should do
@@ -187,10 +184,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnx ${CMAKE_CURRENT
 
 add_custom_target(large_tests)
 
-if(${CHAINER_COMPILER_ENABLE_PYTHON})
-  include_directories(${CMAKE_BINARY_DIR}/third_party/chainer/chainerx_cc/pybind11/include)
-  add_subdirectory(python)
-endif()
+include_directories(${CMAKE_BINARY_DIR}/third_party/chainer/chainerx_cc/pybind11/include)
+add_subdirectory(python)
 
 set(ONNX_CHAINER_DEPS
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnx-chainer/onnx_chainer/__init__.py

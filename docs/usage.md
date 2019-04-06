@@ -70,15 +70,6 @@ To use chainer-compiler from Chainer code, you first need to install Chainer fro
 $ CHAINER_BUILD_CHAINERX=1 CHAINERX_BUILD_CUDA=1 MAKEFLAGS=-j2 pip3 install --user third_party/chainer
 ```
 
-You also need to rebuild chainer compiler with three flags:
-
-```shell-session
-$ cd build
-$ cmake -DCHAINER_COMPILER_ENABLE_PYTHON=ON -DPYTHON_EXECUTABLE=/usr/bin/python3 -DCHAINERX_BUILD_PYTHON=ON ..
-$ make
-$ cd ..
-```
-
 Check if everything is fine by running pytest:
 
 ```shell-session

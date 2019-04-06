@@ -78,19 +78,44 @@ if(${CHAINER_COMPILER_ENABLE_OPENCV})
   set_target_properties(train_imagenet PROPERTIES OUTPUT_NAME "train_imagenet")
 endif()
 
-if (${CHAINER_COMPILER_ENABLE_PYTHON})
-  include_directories(${PYTHON_INCLUDE_DIRS})
+include_directories(${PYTHON_INCLUDE_DIRS})
 
-  add_library(run_onnx_core.so MODULE run_onnx_core.cc)
-  set_hidden_(run_onnx_core.so)
+add_library(run_onnx_core.so MODULE run_onnx_core.cc)
+set_hidden_(run_onnx_core.so)
 
-  target_link_libraries(run_onnx_core.so
+target_link_libraries(run_onnx_core.so
+  PRIVATE
+  run_onnx_lib
+  chainer_compiler_tools
+  chainer_compiler_compiler
+  chainer_compiler_runtime
+  chainer_compiler_common
+  chainerx
+  onnx
+  onnx_proto
+  ${PROTOBUF_LIBRARY}
+  pthread
+  ${CHAINER_COMPILER_NGRAPH_LIBRARIES}
+  ${CHAINER_COMPILER_TVM_LIBRARIES}
+  ${CHAINER_COMPILER_CUDA_LIBRARIES}
+  )
+set_target_properties(run_onnx_core.so
+  PROPERTIES
+  PREFIX "${PYTHON_MODULE_PREFIX}"
+  SUFFIX "${PYTHON_MODULE_SUFFIX}")
+
+if(${CHAINER_COMPILER_ENABLE_OPENCV})
+  add_library(train_imagenet_core.so MODULE train_imagenet_core.cc)
+  set_hidden_(train_imagenet_core.so)
+
+  target_link_libraries(train_imagenet_core.so
     PRIVATE
-    run_onnx_lib
+    train_imagenet_lib
     chainer_compiler_tools
     chainer_compiler_compiler
     chainer_compiler_runtime
     chainer_compiler_common
+    feeder
     chainerx
     onnx
     onnx_proto
@@ -99,38 +124,10 @@ if (${CHAINER_COMPILER_ENABLE_PYTHON})
     ${CHAINER_COMPILER_NGRAPH_LIBRARIES}
     ${CHAINER_COMPILER_TVM_LIBRARIES}
     ${CHAINER_COMPILER_CUDA_LIBRARIES}
+    ${OpenCV_LIBS}
     )
-  set_target_properties(run_onnx_core.so
+  set_target_properties(train_imagenet_core.so
     PROPERTIES
     PREFIX "${PYTHON_MODULE_PREFIX}"
     SUFFIX "${PYTHON_MODULE_SUFFIX}")
-
-  if(${CHAINER_COMPILER_ENABLE_OPENCV})
-    add_library(train_imagenet_core.so MODULE train_imagenet_core.cc)
-    set_hidden_(train_imagenet_core.so)
-
-    target_link_libraries(train_imagenet_core.so
-      PRIVATE
-      train_imagenet_lib
-      chainer_compiler_tools
-      chainer_compiler_compiler
-      chainer_compiler_runtime
-      chainer_compiler_common
-      feeder
-      chainerx
-      onnx
-      onnx_proto
-      ${PROTOBUF_LIBRARY}
-      pthread
-      ${CHAINER_COMPILER_NGRAPH_LIBRARIES}
-      ${CHAINER_COMPILER_TVM_LIBRARIES}
-      ${CHAINER_COMPILER_CUDA_LIBRARIES}
-      ${OpenCV_LIBS}
-      )
-    set_target_properties(train_imagenet_core.so
-      PROPERTIES
-      PREFIX "${PYTHON_MODULE_PREFIX}"
-      SUFFIX "${PYTHON_MODULE_SUFFIX}")
-  endif()
-
 endif()

@@ -11,10 +11,7 @@ time bash setup.sh
 
 mkdir build
 cd build
-time cmake .. \
-      -DCHAINER_COMPILER_ENABLE_PYTHON=ON \
-      -DCHAINERX_BUILD_PYTHON=ON \
-      -DPYTHON_EXECUTABLE=/usr/bin/python3
+time cmake ..
 time make -j2
 
 time make large_tests

@@ -135,7 +135,6 @@ TODO(hamaji): Document some of them. Notably,
 
 1. `CHAINER_COMPILER_ENABLE_CUDNN` is important for EspNet.
 1. `CHAINER_COMPILER_ENABLE_NVTX` and `CHAINER_COMPILER_ENABLE_NVRTC` are important for tuning CUDA performance.
-1. `CHAINER_COMPILER_ENABLE_PYTHON` is necessary for [Python interface](python/chainer_compiler.py).
 
 ## Run tests
 
@@ -144,7 +143,7 @@ $ cd build
 $ make test
 $ cd ..
 $ ./scripts/runtests.py
-$ pytest python  # If you set -DCHAINER_COMPILER_ENABLE_PYTHON=ON
+$ pytest python
 ```
 
 Now you can proceed to [example usage](usage.md).
