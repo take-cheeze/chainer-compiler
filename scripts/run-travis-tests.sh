@@ -15,7 +15,7 @@ time cmake .. \
       -DCHAINER_COMPILER_ENABLE_PYTHON=ON \
       -DPYTHON_EXECUTABLE=/usr/bin/python3 \
       -DCHAINER_COMPILER_ENABLE_OPENCV=ON
-time make -j2
+time make -j4
 
 time make large_tests
 

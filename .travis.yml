@@ -18,7 +18,7 @@ addons:
     update: true
 
 env:
-  - CHAINER_BUILD_CHAINERX=1 MAKEFLAGS=-j2
+  - CHAINER_BUILD_CHAINERX=1 MAKEFLAGS=-j4
 
 notifications:
   slack:
