@@ -18,6 +18,7 @@
 #include <compiler/passes.h>
 #include <compiler/tvm/compiler.h>
 #include <compiler/value.h>
+#include <runtime/chainerx_util.h>
 #include <runtime/chxvm.pb.h>
 
 namespace chainer_compiler {
@@ -297,9 +298,7 @@ private:
             CHECK_EQ(1UL, node.outputs().size());
             // TODO(ChainerX): Support dilation.
             for (int d : node.dilations()) CHECK_EQ(d, 1) << "Dilation is not supported yet";
-            // Support auto_pad only for MNIST
-            CHECK(node.auto_pad() == "NOTSET" || node.auto_pad() == "SAME_UPPER");
-            EMIT(Conv, out(0), in(0), in(1), oin(2), strides(), pads(), node.group(), node.auto_pad());
+            EMIT(Conv, out(0), in(0), in(1), oin(2), strides(), pads(), node.group(), int(runtime::ToAutoPadEnum(node.auto_pad())));
         } else if (node.op_type() == Node::kConvTranspose) {
             CHECK_LE(2UL, node.inputs().size());
             CHECK_GE(3UL, node.inputs().size());
@@ -415,15 +414,27 @@ private:
             EMIT(Pad, out(0), in(0), node.pads(), node.value());
         } else if (node.op_type() == Node::kMaxPool) {
             CHECK_EQ(1UL, node.inputs().size());
-            CHECK_EQ("NOTSET", node.auto_pad()) << "auto_pad is not supported for MaxPool";
             if (node.outputs().size() != 1) {
                 CHECK_EQ(3UL, node.outputs().size());
                 CHECK(node.output(1)->IsNull());
             }
-            EMIT(MaxPool, out(0), oout(2), in(0), node.kernel_shape(), strides(), pads(), node.chainer_cover_all());
+            EMIT(MaxPool,
+                 out(0),
+                 oout(2),
+                 in(0),
+                 node.kernel_shape(),
+                 strides(),
+                 pads(),
+                 int(runtime::ToAutoPadEnum(node.auto_pad())),
+                 node.chainer_cover_all());
         } else if (node.op_type() == Node::kChainerMaxPoolGrad) {
-            CHECK_EQ("NOTSET", node.auto_pad()) << "auto_pad is not supported for MaxPool";
-            EMIT(MaxPoolGrad, out(0), in(0), in(1), node.kernel_shape(), node.chainer_cover_all());
+            EMIT(MaxPoolGrad,
+                 out(0),
+                 in(0),
+                 in(1),
+                 node.kernel_shape(),
+                 int(runtime::ToAutoPadEnum(node.auto_pad())),
+                 node.chainer_cover_all());
         } else if (node.op_type() == Node::kChainerROIMaxPool2D) {
             EMIT(ROIMaxPool2D, out(0), in(0), in(1), in(2), node.output_shape(), node.spatial_scale());
         } else if (node.op_type() == Node::kChainerROIAveragePool2D) {
@@ -435,12 +446,24 @@ private:
         } else if (node.op_type() == Node::kChainerResizeImages) {
             EMIT(ResizeImages, out(0), in(0), node.output_shape());
         } else if (node.op_type() == Node::kAveragePool) {
-            CHECK_EQ("NOTSET", node.auto_pad()) << "auto_pad is not supported for AveragePool";
             CHECK_EQ(1UL, node.inputs().size());
-            EMIT(AveragePool, out(0), oout(1), in(0), node.kernel_shape(), strides(), pads(), node.count_include_pad());
+            EMIT(AveragePool,
+                 out(0),
+                 oout(1),
+                 in(0),
+                 node.kernel_shape(),
+                 strides(),
+                 pads(),
+                 int(runtime::ToAutoPadEnum(node.auto_pad())),
+                 node.count_include_pad());
         } else if (node.op_type() == Node::kChainerAveragePoolGrad) {
-            CHECK_EQ("NOTSET", node.auto_pad()) << "auto_pad is not supported for AveragePool";
-            EMIT(AveragePoolGrad, out(0), in(0), in(1), node.kernel_shape(), node.count_include_pad());
+            EMIT(AveragePoolGrad,
+                 out(0),
+                 in(0),
+                 in(1),
+                 node.kernel_shape(),
+                 int(runtime::ToAutoPadEnum(node.auto_pad())),
+                 node.count_include_pad());
         } else if (node.op_type() == Node::kChainerPadBatchSize) {
             EMIT(PadBatchSize, out(0), in(0), node.size());
         } else if (node.op_type() == Node::kSoftmax) {

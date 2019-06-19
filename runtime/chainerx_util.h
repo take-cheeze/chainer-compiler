@@ -43,5 +43,22 @@ bool IsFloat(chainerx::Dtype dtype);
 
 void BlitArray(const chainerx::Array& src, const chainerx::Array& dst);
 
+enum class AutoPadType {
+    NOTSET,
+    SAME_UPPER,
+    SAME_LOWER,
+};
+
+AutoPadType ToAutoPadEnum(const std::string& str);
+
+std::ostream& operator<<(std::ostream& os, AutoPadType pad);
+
+Int64StackVector CalculateAutoPad(
+        AutoPadType pad_type,
+        const Int64StackVector& pads,
+        const Int64StackVector& expected_shape,
+        const Int64StackVector& kernel_shape,
+        const Int64StackVector& strides);
+
 }  // namespace runtime
 }  // namespace chainer_compiler

@@ -200,5 +200,59 @@ void BlitArray(const chainerx::Array& src, const chainerx::Array& dst) {
     src.device().backend().CallKernel<chainerx::CopyKernel>(src, dst);
 }
 
+AutoPadType ToAutoPadEnum(const std::string& str) {
+    if (str == "SAME_UPPER") {
+        return AutoPadType::SAME_UPPER;
+    } else if (str == "SAME_LOWER") {
+        return AutoPadType::SAME_LOWER;
+    }
+    CHECK_EQ("NOTSET", str);
+    return AutoPadType::NOTSET;
+}
+
+std::ostream& operator<<(std::ostream& os, AutoPadType pad) {
+    switch (pad) {
+        case AutoPadType::SAME_UPPER:
+            os << "SAME_UPPER";
+            break;
+        case AutoPadType::SAME_LOWER:
+            os << "SAME_LOWER";
+            break;
+        case AutoPadType::NOTSET:
+            os << "NOTSET";
+            break;
+        default:
+            CHECK(false) << "invalid auto pad type: " << pad;
+    }
+    return os;
+}
+
+Int64StackVector CalculateAutoPad(
+        AutoPadType pad_type,
+        const Int64StackVector& pads,
+        const Int64StackVector& expected_shape,
+        const Int64StackVector& kernel_shape,
+        const Int64StackVector& strides) {
+    if (pad_type == AutoPadType::SAME_UPPER || pad_type == AutoPadType::SAME_LOWER) {
+        Int64StackVector ret;
+        for (size_t i = 0; i < expected_shape.size(); ++i) {
+            const int64_t in_dim = expected_shape[i];
+            const int64_t stride = strides[i];
+            const int64_t kernel = kernel_shape[i];
+
+            const int64_t legacy_target_size = (in_dim + stride - 1) / stride;
+            const int64_t pad_needed = (legacy_target_size - 1) * stride + kernel - in_dim;
+
+            ret.push_back(pad_needed / 2);
+            std::cerr << "kernel: " << kernel << ", in: " << in_dim << ", pad: " << ret.back() << ", target size: " << legacy_target_size
+                      << std::endl;
+        }
+        return ret;
+    }
+
+    CHECK_EQ(AutoPadType::NOTSET, pad_type);
+    return pads;
+}
+
 }  // namespace runtime
 }  // namespace chainer_compiler

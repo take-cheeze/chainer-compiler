@@ -53,7 +53,12 @@ std::tuple<chainerx::Array, ChxVMOpaque*> MaxPoolOp::RunImpl(ChxVMState* st, con
     std::shared_ptr<chainerx::MaxPoolGradState> state;
     chainerx::Array out;
     const Int64StackVector& strides = ComplementStride(this->strides, x);
-    const Int64StackVector& pads = ComplementPad(this->pads, x);
+    Int64StackVector pads = CalculateAutoPad(
+            AutoPadType(auto_pad),
+            ComplementPad(this->pads, x),
+            Int64StackVector(x.shape().begin() + 2, x.shape().end()),
+            kernel_shape,
+            strides);
     std::tie(out, state) =
             x.device().backend().CallKernel<chainerx::MaxPoolKernel>(x, kernel_shape, strides, pads, cover_all, true, nonstd::nullopt);
     ChxVMOpaque* ctx = new BackwardContext<chainerx::MaxPoolGradState>(std::move(state), strides, pads);
@@ -68,8 +73,14 @@ std::tuple<chainerx::Array, ChxVMOpaque*> AveragePoolOp::RunImpl(ChxVMState* st,
     chainerx::AveragePoolPadMode pad_mode = count_include_pad ? chainerx::AveragePoolPadMode::kZero : chainerx::AveragePoolPadMode::kIgnore;
     std::shared_ptr<chainerx::AveragePoolGradState> state;
     chainerx::Array out;
-    std::tie(out, state) =
-            x.device().backend().CallKernel<chainerx::AveragePoolKernel>(x, kernel_shape, strides, pads, pad_mode, true, nonstd::nullopt);
+    Int64StackVector pads = CalculateAutoPad(
+            AutoPadType(auto_pad),
+            ComplementPad(this->pads, x),
+            Int64StackVector(x.shape().begin() + 2, x.shape().end()),
+            kernel_shape,
+            strides);
+    std::tie(out, state) = x.device().backend().CallKernel<chainerx::AveragePoolKernel>(
+            x, kernel_shape, strides, pads, pad_mode, AutoPadType(auto_pad) == AutoPadType::NOTSET, nonstd::nullopt);
     ChxVMOpaque* ctx = new BackwardContext<chainerx::AveragePoolGradState>(std::move(state), strides, pads);
     if (st->options().dump_memory_usage) {
         ctx->SetRetainedArrays({x, out});
