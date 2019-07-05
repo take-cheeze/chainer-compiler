@@ -444,6 +444,8 @@ TEST_CASES = [
     # TestCase(NODE_TEST, 'test_bitshift_right_uint64'),
     # TestCase(NODE_TEST, 'test_bitshift_right_uint32'),
     # TestCase(NODE_TEST, 'test_bitshift_right_uint16'),
+
+    TestCase(NODE_TEST, 'test_roialign'),
 ]
 
 TEST_CASES += [
