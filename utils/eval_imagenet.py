@@ -1,3 +1,6 @@
+# Note: This file is a modification from chainercv example.
+# https://github.com/chainer/chainercv/blob/master/examples/classification/eval_imagenet.py
+
 import argparse
 
 import numpy as np
