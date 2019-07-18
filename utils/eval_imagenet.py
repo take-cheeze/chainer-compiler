@@ -2,6 +2,7 @@
 # https://github.com/chainer/chainercv/blob/master/examples/classification/eval_imagenet.py
 
 import argparse
+import os
 
 import numpy as np
 
@@ -24,6 +25,9 @@ from chainercv.links import VGG16
 
 from chainercv.utils import apply_to_iterator
 from chainercv.utils import ProgressHook
+
+import chainer_compiler
+from chainer_compiler.utils import input_rewriter
 
 
 models = {
@@ -56,9 +60,13 @@ def setup(dataset, model, pretrained_model, batchsize, val, crop, resnet_arch):
         print()
         print('Top 1 Error {}'.format(1. - accuracy))
 
-    cls, pretrained_models, default_batchsize = models[model][:3]
-    if pretrained_model is None:
-        pretrained_model = pretrained_models.get(dataset_name, dataset_name)
+    if models[model]:
+        cls, pretrained_models, default_batchsize = models[model][:3]
+        if pretrained_model is None:
+            pretrained_model = pretrained_models.get(dataset_name, dataset_name)
+    else:
+        cls, pretrained_models, default_batchsize = 
+
     if crop is None:
         crop = models[model][3]
     kwargs = {
@@ -90,6 +98,26 @@ def main():
     parser.add_argument('--batchsize', type=int)
     parser.add_argument('--crop', choices=('center', '10'))
     parser.add_argument('--resnet-arch')
+    parser.add_argument('--iterations', '-I', type=int, default=None,
+                        help='Number of iterations to train')
+    parser.add_argument('--no_use_fixed_batch_dataset',
+                        dest='use_fixed_batch_dataset',
+                        action='store_false',
+                        help='Disable the use of FixedBatchDataset')
+    parser.add_argument('--compiler-log', action='store_true',
+                        help='Enables compile-time logging')
+    parser.add_argument('--trace', action='store_true',
+                        help='Enables runtime tracing')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Enables runtime verbose log')
+    parser.add_argument('--skip_runtime_type_check', action='store_true',
+                        help='Skip runtime type check')
+    parser.add_argument('--dump_memory_usage', action='store_true',
+                        help='Dump memory usage')
+    parser.add_argument('--quiet_period', type=int, default=0,
+                        help='Quiet period after runtime report')
+    parser.add_argument('--overwrite_batchsize', action='store_true',
+                        help='Overwrite batch size')
     args = parser.parse_args()
 
     dataset, eval_, model, batchsize = setup(
@@ -99,6 +127,64 @@ def main():
     if args.gpu >= 0:
         chainer.cuda.get_device(args.gpu).use()
         model.to_gpu()
+
+    if args.export is not None:
+        chainer_compiler.use_unified_memory_allocator()
+        extractor.to_device(device)
+        x = extractor.xp.zeros((args.batchsize, 3, 224, 224)).astype('f')
+        chainer_compiler.export(extractor, [x], args.export)
+        return
+
+    if args.compile is not None:
+        print('run compiled model')
+        chainer_compiler.use_chainerx_shared_allocator()
+        extractor.to_device(device)
+        # init params
+        with chainer.using_config('enable_backprop', False),\
+                chainer.using_config('train', False):
+            x = extractor.xp.zeros((1, 3, 224, 224)).astype('f')
+            extractor(x)
+
+        compiler_kwargs = {}
+        if args.compiler_log:
+            compiler_kwargs['compiler_log'] = True
+        runtime_kwargs = {}
+        if args.trace:
+            runtime_kwargs['trace'] = True
+        if args.verbose:
+            runtime_kwargs['verbose'] = True
+        if args.skip_runtime_type_check:
+            runtime_kwargs['check_types'] = False
+        if args.dump_memory_usage:
+            runtime_kwargs['dump_memory_usage'] = True
+            free, total = cupy.cuda.runtime.memGetInfo()
+            used = total - free
+            runtime_kwargs['base_memory_usage'] = used
+
+        onnx_filename = args.compile
+        if args.overwrite_batchsize:
+            new_onnx_filename = ('/tmp/overwrite_batchsize_' +
+                                 os.path.basename(onnx_filename))
+            new_input_types = [
+                input_rewriter.Type(shape=(args.batchsize, 3, 224, 224))
+            ]
+            input_rewriter.rewrite_onnx_file(onnx_filename,
+                                             new_onnx_filename,
+                                             new_input_types)
+            onnx_filename = new_onnx_filename
+
+        extractor_cc = chainer_compiler.compile_onnx(
+            extractor,
+            onnx_filename,
+            'onnx_chainer',
+            computation_order=args.computation_order,
+            compiler_kwargs=compiler_kwargs,
+            runtime_kwargs=runtime_kwargs,
+            quiet_period=args.quiet_period)
+        model = Classifier(extractor_cc)
+    else:
+        print('run vanilla chainer model')
+        model = Classifier(extractor)
 
     iterator = iterators.MultiprocessIterator(
         dataset, batchsize, repeat=False, shuffle=False,
