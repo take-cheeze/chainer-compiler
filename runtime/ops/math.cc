@@ -17,6 +17,10 @@
 
 #include <numeric>
 
+#if CHAINER_COMPILER_ENABLE_CLBLAS
+#include <clBLAS.h>
+#endif
+
 namespace chainer_compiler {
 namespace runtime {
 
@@ -166,20 +170,111 @@ chainerx::Array MatMulOp::RunImpl(ChxVMState* st, const chainerx::Array& a, cons
 }
 
 chainerx::Array GemmOp::RunImpl(ChxVMState* st, const chainerx::Array& a, const chainerx::Array& b, const chainerx::Array& c) {
-    if (alpha == 1.0 && beta == 1.0 && !trans_a && trans_b && c.ndim() == 1) {
-        return Linear(a, b, c);
+    auto fallback_gemm = [&]() {
+        if (alpha == 1.0 && beta == 1.0 && !trans_a && trans_b && c.ndim() == 1) {
+            return Linear(a, b, c);
+        }
+
+        chainerx::Array xa = a;
+        chainerx::Array xb = b;
+        if (trans_a) xa = chainerx::Transpose(xa);
+        if (trans_b) xb = chainerx::Transpose(xb);
+        chainerx::Array r = chainerx::Dot(xa, xb);
+        if (alpha != 1.0) r *= alpha;
+        if (beta == 0.0) return r;
+        chainerx::Array xc = c;
+        if (beta != 1.0) xc = xc * beta;
+        return r + xc;
+    };
+#if CHAINER_COMPILER_ENABLE_CLBLAS
+    if (a.dtype() != chainerx::Dtype::kFloat32 || b.dtype() != chainerx::Dtype::kFloat32 || c.dtype() != chainerx::Dtype::kFloat32) {
+        return fallback_gemm();
     }
 
-    chainerx::Array xa = a;
-    chainerx::Array xb = b;
-    if (trans_a) xa = chainerx::Transpose(xa);
-    if (trans_b) xb = chainerx::Transpose(xb);
-    chainerx::Array r = chainerx::Dot(xa, xb);
-    if (alpha != 1.0) r *= alpha;
-    if (beta == 0.0) return r;
-    chainerx::Array xc = c;
-    if (beta != 1.0) xc = xc * beta;
-    return r + xc;
+    cl_int err;
+    cl_platform_id platform = 0;
+    cl_device_id device = 0;
+    cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, 0, 0};
+    cl_context ctx = 0;
+    cl_command_queue queue = 0;
+    cl_mem bufA, bufB, bufC;
+    cl_event event = NULL;
+
+    chainerx::Array cont_a = chainerx::AsContiguous(a);
+    chainerx::Array cont_b = chainerx::AsContiguous(b);
+    chainerx::Array cont_c = chainerx::AsContiguous(c);
+
+    /* Setup OpenCL environment. */
+    err = clGetPlatformIDs(1, &platform, NULL);
+    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+
+    props[1] = (cl_context_properties)platform;
+    ctx = clCreateContext(props, 1, &device, NULL, NULL, &err);
+    queue = clCreateCommandQueue(ctx, device, 0, &err);
+
+    /* Setup clBLAS */
+    err = clblasSetup();
+
+    int64_t m = cont_a.shape()[0], k = cont_a.shape()[1], n = cont_b.shape()[1];
+
+    /* Prepare OpenCL memory objects and place matrices inside them. */
+    bufA = clCreateBuffer(ctx, CL_MEM_READ_ONLY, m * k * sizeof(float), NULL, &err);
+    bufB = clCreateBuffer(ctx, CL_MEM_READ_ONLY, k * n * sizeof(float), NULL, &err);
+    bufC = clCreateBuffer(ctx, CL_MEM_READ_WRITE, m * n * sizeof(float), NULL, &err);
+
+    err = clEnqueueWriteBuffer(queue, bufA, CL_TRUE, 0, m * k * sizeof(float), cont_a.raw_data(), 0, NULL, NULL);
+    err = clEnqueueWriteBuffer(queue, bufB, CL_TRUE, 0, k * n * sizeof(float), cont_b.raw_data(), 0, NULL, NULL);
+    err = clEnqueueWriteBuffer(queue, bufC, CL_TRUE, 0, m * n * sizeof(float), cont_c.raw_data(), 0, NULL, NULL);
+
+    /* Call clBLAS extended function. Perform gemm for the lower right sub-matrices */
+    err = clblasSgemm(
+            clblasRowMajor,
+            trans_a ? clblasTrans : clblasNoTrans,
+            trans_b ? clblasTrans : clblasNoTrans,
+            m,
+            n,
+            k,
+            alpha,
+            bufA,
+            0,
+            cont_a.shape()[0],
+            bufB,
+            0,
+            cont_b.shape()[0],
+            beta,
+            bufC,
+            0,
+            cont_c.shape()[0],
+            1,
+            &queue,
+            0,
+            NULL,
+            &event);
+
+    /* Wait for calculations to be finished. */
+    err = clWaitForEvents(1, &event);
+
+    std::vector<float> result(m * n);
+
+    /* Fetch results of calculations from GPU memory. */
+    err = clEnqueueReadBuffer(queue, bufC, CL_TRUE, 0, m * n * sizeof(float), result.data(), 0, NULL, NULL);
+
+    /* Release OpenCL memory objects. */
+    clReleaseMemObject(bufC);
+    clReleaseMemObject(bufB);
+    clReleaseMemObject(bufA);
+
+    /* Finalize work with clBLAS */
+    clblasTeardown();
+
+    /* Release OpenCL working objects. */
+    clReleaseCommandQueue(queue);
+    clReleaseContext(ctx);
+
+    return MakeArray(chainerx::Dtype::kFloat32, {m, n}, result.data());
+#else
+    return fallback_gemm();
+#endif
 }
 
 chainerx::Array MaxOp::RunImpl(ChxVMState* st, const std::vector<chainerx::Array>& inputs) {

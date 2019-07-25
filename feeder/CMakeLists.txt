@@ -27,6 +27,7 @@ target_link_libraries(chainer_compiler_feeder_test
   pthread
   ${OpenCV_LIBS}
   ${CHAINER_COMPILER_CUDA_LIBRARIES}
+  ${CHAINER_COMPILER_CLBLAS_LIBRARIES}
   absl::variant
   absl::optional
   )
