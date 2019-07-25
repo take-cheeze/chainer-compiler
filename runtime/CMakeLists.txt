@@ -94,6 +94,7 @@ target_link_libraries(chainer_compiler_runtime_test
   ${CHAINER_COMPILER_DLDT_LIBRARIES}
   ${CHAINER_COMPILER_TVM_RUNTIME_LIBRARIES}
   ${CHAINER_COMPILER_CUDA_LIBRARIES}
+  ${CHAINER_COMPILER_CLBLAS_LIBRARIES}
   absl::variant
   absl::optional
   )
